@@ -89,10 +89,10 @@ void loop() {
 void sendSms() {
 
   // send an SMS!
-  //char sendto[21], message[141];
-  String sendto = "0485XXXXXX";
-  String message = "Alarm";
-  if (!fona.sendSMS(sendto.c_str(), message.c_str())) {
+  char sendto[] = "0485XXXXXX";
+  char message[] = "Alarm";
+  
+  if (!fona.sendSMS(sendto, message)) {
     Serial.println(F("Message failed"));
   } else {
     Serial.println(F("Message Sent!"));
