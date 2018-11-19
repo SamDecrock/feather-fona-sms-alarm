@@ -11,7 +11,8 @@ SoftwareSerial *fonaSerial = &fonaSS;
 Adafruit_FONA fona = Adafruit_FONA(FONA_RST);
 
 const int buttonPin = A0;    // the number of the pushbutton pin
-const int ledPin = 12;      // the number of the LED pin
+const int green = 12;      // the number of the LED pin
+const int red = 11;
 
 bool fonaConnected = false;
 
@@ -29,10 +30,11 @@ void setup() {
   Serial.println("hello");
 
   pinMode(buttonPin, INPUT);
-  pinMode(ledPin, OUTPUT);
+  pinMode(green, OUTPUT);
+  pinMode(red, OUTPUT);
 
   // set initial LED state
-  digitalWrite(ledPin, 0);
+  digitalWrite(green, 0);
 
   fonaSerial->begin(4800);
   if (! fona.begin(*fonaSerial)) {
@@ -40,13 +42,17 @@ void setup() {
     while (1);
   }
   Serial.println(F("FONA is OK"));
+  
   fonaConnected = true;
-  digitalWrite(ledPin, 1);
+  digitalWrite(green, 1);
+  digitalWrite(red, 0);
 }
 
 void loop() {
   // read the state of the switch into a local variable:
   int reading = digitalRead(buttonPin);
+
+  digitalWrite(red, !reading);
 
   // check to see if you just pressed the button
   // (i.e. the input went from LOW to HIGH),  and you've waited
@@ -68,8 +74,10 @@ void loop() {
 
       Serial.println(buttonState);
 
+      
+
       if(fonaConnected) {
-        digitalWrite(ledPin, buttonState);
+        digitalWrite(green, buttonState);
 
         if(buttonState == 0) {
           sendSms();
@@ -96,21 +104,20 @@ void sendSms() {
     Serial.println(F("Message failed"));
   } else {
     Serial.println(F("Message Sent!"));
-    digitalWrite(ledPin, 0);
+    digitalWrite(green, 0);
     delay(100);
-    digitalWrite(ledPin, 1);
+    digitalWrite(green, 1);
     delay(100);
-    digitalWrite(ledPin, 0);
+    digitalWrite(green, 0);
     delay(100);
-    digitalWrite(ledPin, 1);
+    digitalWrite(green, 1);
     delay(100);
-    digitalWrite(ledPin, 0);
+    digitalWrite(green, 0);
     delay(100);
-    digitalWrite(ledPin, 1);
+    digitalWrite(green, 1);
     delay(100);
-    digitalWrite(ledPin, 0);
+    digitalWrite(green, 0);
   }
 
-  digitalWrite(ledPin, buttonState);
+  digitalWrite(green, buttonState);
 }
-
