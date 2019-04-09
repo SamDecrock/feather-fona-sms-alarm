@@ -16,7 +16,7 @@ const int green = 12;
 const int red = 11;
 
 bool connectedToNetwork = false;
-bool networkDisconnectCounter = 0;
+int networkDisconnectCounter = 0;
 
 // Variables will change:
 int circuitState;           // the current circuit state
