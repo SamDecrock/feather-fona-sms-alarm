@@ -1,5 +1,6 @@
 #include "Adafruit_FONA.h"
 
+//#define DEBUG
 
 #define FONA_RX 9
 #define FONA_TX 8
@@ -31,9 +32,11 @@ unsigned long lastNetworkCheckTime = 0;
 unsigned long lastSendSmsTime = 0;
 
 void setup() {
-  Serial.begin(115200);
-  //while (!Serial) {}
-  Serial.println("just started");
+  #ifdef DEBUG
+    Serial.begin(115200);
+    //while (!Serial) {}
+    Serial.println("just started");
+  #endif
 
 
   // configure pins:
@@ -52,9 +55,17 @@ void setup() {
   bool modemInitSuccess = fona.begin(*fonaSerial);
 
   if (!modemInitSuccess) {
-    Serial.println(F("Couldn't find FONA"));
+    #ifdef DEBUG
+      Serial.println(F("Couldn't find FONA"));
+    #endif
+
     while (1); // halt!
   }
+
+  #ifdef DEBUG
+    Serial.println(F("Init done"));
+  #endif
+
 }
 
 void loop() {
@@ -87,20 +98,32 @@ void checkNetwork() {
     networkDisconnectCounter++;
   }
 
+  #ifdef DEBUG
+    Serial.print("networkDisconnectCounter: ");
+    Serial.println(networkDisconnectCounter);
+  #endif
+
+
   // update green LED according to network state:
   digitalWrite(green, connectedToNetwork);
 
 
   // check if network connection is down too long:
   if(networkDisconnectCounter >= 6) { // after a minute of disconnected
-    Serial.println(F("Modem disonnected for 1 minute... will re-init modem."));
+    #ifdef DEBUG
+      Serial.println(F("Modem disonnected for 1 minute... will re-init modem."));
+    #endif
+
     // re-initialize modem:
     bool modemInitSuccess = fona.begin(*fonaSerial);
     networkDisconnectCounter = 0;
 
-    if(!modemInitSuccess) {
-      Serial.println(F("Re-init of modem failed"));
-    }
+    #ifdef DEBUG
+      if(!modemInitSuccess) {
+        Serial.println(F("Re-init of modem failed"));
+      }
+    #endif
+
   }
 }
 
@@ -130,8 +153,10 @@ void readCircuit() {
     if (currentCircuitState != circuitState) {
       circuitState = currentCircuitState;
 
-      Serial.print("circuit state: ");
-      Serial.println(circuitState);
+      #ifdef DEBUG
+        Serial.print("circuit state: ");
+        Serial.println(circuitState);
+      #endif
 
       if(circuitState == 0) {
         sendSms();
@@ -162,12 +187,19 @@ void sendSms() {
   char sendto[] = "0485xxxxxx";
   char message[] = "Alarm";
 
-  Serial.println("Sending Alarm sms");
+  #ifdef DEBUG
+    Serial.println("Sending Alarm sms");
+  #endif
+
 
   if (!fona.sendSMS(sendto, message)) {
-    Serial.println("Message failed");
+    #ifdef DEBUG
+      Serial.println("Message failed");
+    #endif
   } else {
-    Serial.println("Message Sent!");
+    #ifdef DEBUG
+      Serial.println("Message Sent!");
+    #endif
     digitalWrite(green, 0);
     delay(100);
     digitalWrite(green, 1);
