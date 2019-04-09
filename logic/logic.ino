@@ -1,5 +1,6 @@
 #include "Adafruit_FONA.h"
 
+
 #define FONA_RX 9
 #define FONA_TX 8
 #define FONA_RST 4
@@ -10,114 +11,173 @@ SoftwareSerial *fonaSerial = &fonaSS;
 
 Adafruit_FONA fona = Adafruit_FONA(FONA_RST);
 
-const int buttonPin = A0;    // the number of the pushbutton pin
-const int green = 12;      // the number of the LED pin
+const int circuitPin = A0;
+const int green = 12;
 const int red = 11;
 
-bool fonaConnected = false;
+bool connectedToNetwork = false;
+bool networkDisconnectCounter = 0;
 
 // Variables will change:
-int buttonState;             // the current reading from the input pin
-int lastButtonState = LOW;   // the previous reading from the input pin
+int circuitState;           // the current circuit state
+int lastCircuitState = 0;   // the previous circuit state
 
 // the following variables are unsigned long's because the time, measured in miliseconds,
 // will quickly become a bigger number than can be stored in an int.
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
 unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
 
+unsigned long lastNetworkCheckTime = 0;
+unsigned long lastSendSmsTime = 0;
+
 void setup() {
   Serial.begin(115200);
-  Serial.println("hello");
+  //while (!Serial) {}
+  Serial.println("just started");
 
-  pinMode(buttonPin, INPUT);
+
+  // configure pins:
+  pinMode(circuitPin, INPUT);
   pinMode(green, OUTPUT);
   pinMode(red, OUTPUT);
 
-  // set initial LED state
+  // turn off LEDs:
   digitalWrite(green, 0);
-
-  fonaSerial->begin(4800);
-  if (! fona.begin(*fonaSerial)) {
-    Serial.println(F("Couldn't find FONA"));
-    while (1);
-  }
-  Serial.println(F("FONA is OK"));
-  
-  fonaConnected = true;
-  digitalWrite(green, 1);
   digitalWrite(red, 0);
+
+  // connect to FONA800 modem:
+  fonaSerial->begin(4800);
+
+  // initialize modem:
+  bool modemInitSuccess = fona.begin(*fonaSerial);
+
+  if (!modemInitSuccess) {
+    Serial.println(F("Couldn't find FONA"));
+    while (1); // halt!
+  }
 }
 
 void loop() {
+  // while there is data on the Fona serial, read it and spit it out:
+  // while (fona.available()) {
+  //  Serial.write(fona.read());
+  // }
+
+
+  if((millis() - lastNetworkCheckTime) > 10000) {
+    lastNetworkCheckTime = millis();
+    checkNetwork();
+  }
+
+
+  readCircuit();
+}
+
+// happens every 10 seconds:
+void checkNetwork() {
+
+  uint16_t networkStatus = fona.getNetworkStatus();
+  if((networkStatus == 1 || networkStatus == 5)) {
+    connectedToNetwork = true;
+    networkDisconnectCounter = 0;
+  }
+
+  if(networkStatus != 1 && networkStatus != 5) {
+    connectedToNetwork = false;
+    networkDisconnectCounter++;
+  }
+
+  // update green LED according to network state:
+  digitalWrite(green, connectedToNetwork);
+
+
+  // check if network connection is down too long:
+  if(networkDisconnectCounter >= 6) { // after a minute of disconnected
+    Serial.println(F("Modem disonnected for 1 minute... will re-init modem."));
+    // re-initialize modem:
+    bool modemInitSuccess = fona.begin(*fonaSerial);
+    networkDisconnectCounter = 0;
+
+    if(!modemInitSuccess) {
+      Serial.println(F("Re-init of modem failed"));
+    }
+  }
+}
+
+
+void readCircuit() {
   // read the state of the switch into a local variable:
-  int reading = digitalRead(buttonPin);
+  int currentCircuitState = digitalRead(circuitPin);
 
-  digitalWrite(red, !reading);
+  // turn on red LED when circuit is open:
+  digitalWrite(red, !currentCircuitState);
 
-  // check to see if you just pressed the button
-  // (i.e. the input went from LOW to HIGH),  and you've waited
-  // long enough since the last press to ignore any noise:
+  // check to see if circuit broke ar not
+  // (i.e. the input went from LOW to HIGH), and you've waited
+  // long enough since the change to ignore any noise:
 
-  // If the switch changed, due to noise or pressing:
-  if (reading != lastButtonState) {
+  // If the circuit state changed, due to noise or actual brake:
+  if (currentCircuitState != lastCircuitState) {
     // reset the debouncing timer
     lastDebounceTime = millis();
   }
 
   if ((millis() - lastDebounceTime) > debounceDelay) {
-    // whatever the reading is at, it's been there for longer
+    // whatever the currentCircuitState is at, it's been there for longer
     // than the debounce delay, so take it as the actual current state:
 
-    // if the button state has changed:
-    if (reading != buttonState) {
-      buttonState = reading;
+    // if the circuit state has changed:
+    if (currentCircuitState != circuitState) {
+      circuitState = currentCircuitState;
 
-      Serial.println(buttonState);
+      Serial.print("circuit state: ");
+      Serial.println(circuitState);
 
-      
-
-      if(fonaConnected) {
-        digitalWrite(green, buttonState);
-
-        if(buttonState == 0) {
-          sendSms();
-        }
+      if(circuitState == 0) {
+        sendSms();
       }
+
     }
   }
 
-  // set the LED:
+  // save the currentCircuitState.  Next time through the loop,
+  // it'll be the lastCircuitState:
+  lastCircuitState = currentCircuitState;
 
 
-  // save the reading.  Next time through the loop,
-  // it'll be the lastButtonState:
-  lastButtonState = reading;
+  // keep sending sms every minute if circuit is broken
+  if ((millis() - lastSendSmsTime) > 60000) {
+    lastSendSmsTime = millis();
+
+    if(circuitState == 0) {
+      sendSms();
+    }
+  }
 }
 
 void sendSms() {
+  if(!connectedToNetwork) return;
 
   // send an SMS!
-  char sendto[] = "0485XXXXXX";
+  char sendto[] = "0485xxxxxx";
   char message[] = "Alarm";
-  
-  if (!fona.sendSMS(sendto, message)) {
-    Serial.println(F("Message failed"));
-  } else {
-    Serial.println(F("Message Sent!"));
-    digitalWrite(green, 0);
-    delay(100);
-    digitalWrite(green, 1);
-    delay(100);
-    digitalWrite(green, 0);
-    delay(100);
-    digitalWrite(green, 1);
-    delay(100);
-    digitalWrite(green, 0);
-    delay(100);
-    digitalWrite(green, 1);
-    delay(100);
-    digitalWrite(green, 0);
-  }
 
-  digitalWrite(green, buttonState);
+  Serial.println("Sending Alarm sms");
+
+  if (!fona.sendSMS(sendto, message)) {
+    Serial.println("Message failed");
+  } else {
+    Serial.println("Message Sent!");
+    digitalWrite(green, 0);
+    delay(100);
+    digitalWrite(green, 1);
+    delay(100);
+    digitalWrite(green, 0);
+    delay(100);
+    digitalWrite(green, 1);
+    delay(100);
+    digitalWrite(green, 0);
+    delay(100);
+    digitalWrite(green, 1);
+  }
 }
